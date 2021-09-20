@@ -1,4 +1,5 @@
 import React from 'react'
+import Link from "react-router-dom";
 import {logout} from "../utils";
 
 export const NearLogo = (props) => {
@@ -23,28 +24,24 @@ export const NearLogo = (props) => {
             </g>
         </svg>
         <div className="app-name">
-            {props.appSettings.appShortNme}
         </div>
     </div>;
 };
 
 export const Header = (props) => {
+    console.log(props.title)
     return <div className="nav-container">
         <div className="nav-header">
             <NearLogo appSettings={props.appSettings.appShortNme}/>
-            <div className="nav-item user-name">{window.accountId}</div>
             <Deposit deposit={props.deposit} appSettings={props.appSettings}/>
             <div className="nav align-right">
                 <NavMenu onClick={props.onClick}
                          config={props.config}
+                         title={props.title}
+                         logout={logout}
                          navDropdownRef={props.navDropdownRef}
                          isNavDropdownActive={props.isNavDropdownActive}
                          appSettings={props.appSettings}/>
-                <div className="account-sign-out">
-                    <button className="link" style={{float: 'right'}} onClick={logout}>
-                        Sign out
-                    </button>
-                </div>
             </div>
         </div>
     </div>
@@ -77,8 +74,8 @@ export const NavMenu = (props) => {
         <div className="nav-menu container">
             <div className="menu-container">
                 <button onClick={props.onClick} className="menu-trigger">
-                    <span className="network-title">{props.config.networkId}</span>
-                    <div className="network-icon"></div>
+                    <span className="network-title">{props.title}</span>
+                    <div className="network-icon"/>
                 </button>
                 <nav
                     ref={props.navDropdownRef}
@@ -86,10 +83,14 @@ export const NavMenu = (props) => {
                 >
                     <ul>
                         <li>
-                            <a href={props.appSettings.urlMainnet}>Mainnet</a>
+                            <a href={"#"}>Account</a>
                         </li>
                         <li>
-                            <a href={props.appSettings.urlTestnet}>Testnet</a>
+                            <a href={"#"}>Settings</a>
+                        </li>
+                        <li>
+                            <a href={"#"} onClick={props.logout}>Sign Out</a>
+
                         </li>
                     </ul>
                 </nav>

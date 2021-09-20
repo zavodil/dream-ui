@@ -5,6 +5,9 @@ import { initContract } from './utils'
 
 window.nearInitPromise = initContract()
   .then(() => {
+
+      window.token_contracts = [];
+
     ReactDOM.render(
       <App />,
       document.querySelector('#root')

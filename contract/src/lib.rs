@@ -36,7 +36,7 @@ impl Default for Welcome {
 
 #[near_bindgen]
 impl Welcome {
-    pub fn set_greeting(&mut self, message: String) {
+    pub fn deposit(&mut self, message: String) {
         let account_id = env::signer_account_id();
 
         // Use env::log to record logs permanently to the blockchain!
@@ -48,7 +48,7 @@ impl Welcome {
     // `match` is similar to `switch` in other languages; here we use it to default to "Hello" if
     // self.records.get(&account_id) is not yet defined.
     // Learn more: https://doc.rust-lang.org/book/ch06-02-match.html#matching-with-optiont
-    pub fn get_greeting(&self, account_id: String) -> String {
+    pub fn get_balance(&self, account_id: String) -> String {
         match self.records.get(&account_id) {
             Some(greeting) => greeting,
             None => "Hello".to_string(),
