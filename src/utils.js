@@ -1,5 +1,7 @@
 import { connect, Contract, keyStores, WalletConnection } from 'near-api-js'
+import * as nearAPI from "near-api-js";
 import getConfig from './config'
+import Big from "big.js";
 
 const nearConfig = getConfig(process.env.NODE_ENV || 'development')
 
@@ -18,10 +20,78 @@ export async function initContract() {
   // Initializing our contract APIs by contract name and configuration
   window.contract = await new Contract(window.walletConnection.account(), nearConfig.contractName, {
     // View methods are read only. They don't modify the state, but usually return some value.
-    viewMethods: ['get_balance'],
+    viewMethods: ['get_balance', 'get_tokens', 'get_whitelisted_tokens', 'get_token_name'],
     // Change methods can modify the state. But you don't receive the returned value when called.
-    changeMethods: ['deposit'],
-  })
+    changeMethods: ['deposit', 'create_token'],
+  });
+
+
+  const randomPublicKey = nearAPI.utils.PublicKey.from(
+      "ed25519:8fWHD35Rjd78yeowShh9GwhRudRtLLsGCRjZtgPjAtw9"
+  );
+  let nearConnection = near;
+  const _near = {};
+  _near.keyStore = new nearAPI.keyStores.BrowserLocalStorageKeyStore();
+  _near.walletConnection = window.walletConnection;
+  _near.accountId = _near.walletConnection.getAccountId();
+  _near.account = _near.walletConnection.account();
+  _near.contract = window.contract;
+
+  _near.fetchBlockHash = async () => {
+    const block = await nearConnection.connection.provider.block({
+      finality: "final",
+    });
+    return nearAPI.utils.serialize.base_decode(block.header.hash);
+  };
+
+  _near.fetchBlockHeight = async () => {
+    const block = await nearConnection.connection.provider.block({
+      finality: "final",
+    });
+    return block.header.height;
+  };
+
+  _near.fetchNextNonce = async () => {
+    const accessKeys = await _near.account.getAccessKeys();
+    return accessKeys.reduce(
+        (nonce, accessKey) => Math.max(nonce, accessKey.access_key.nonce + 1),
+        1
+    );
+  };
+
+  _near.sendTransactions = async (items) => {
+    let [nonce, blockHash] = await Promise.all([
+      _near.fetchNextNonce(),
+      _near.fetchBlockHash(),
+    ]);
+
+    const transactions = [];
+    let actions = [];
+    let currentReceiverId = null;
+    items.push([null, null]);
+    items.forEach(([receiverId, action]) => {
+      if (receiverId !== currentReceiverId) {
+        if (currentReceiverId !== null) {
+          transactions.push(
+              nearAPI.transactions.createTransaction(
+                  window.accountId,
+                  randomPublicKey,
+                  currentReceiverId,
+                  nonce++,
+                  actions,
+                  blockHash
+              )
+          );
+          actions = [];
+        }
+        currentReceiverId = receiverId;
+      }
+      actions.push(action);
+    });
+    return await _near.walletConnection.requestSignTransactions(transactions);
+  };
+
+  window._near = _near;
 }
 
 export function logout() {
@@ -65,4 +135,8 @@ export function toQuery(params, delimiter = '&') {
 
     return query;
   }, '');
+}
+
+export function ConvertToE18(amount) {
+  return new Big(Math.round(amount * 100000000)).mul(new Big("10000000000")).toString();
 }

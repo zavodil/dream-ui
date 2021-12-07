@@ -19,3 +19,8 @@
 .Dropdown-arrow{
     margin-top: 8px;
 }
+
+.form-warning{
+    color: pink;
+    padding-top: 10px;
+}

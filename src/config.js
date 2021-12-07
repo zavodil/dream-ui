@@ -1,4 +1,4 @@
-const CONTRACT_NAME = process.env.CONTRACT_NAME || 'near'
+const CONTRACT_NAME = process.env.CONTRACT_NAME || 'dev-1638828451755-91267052968854'
 
 function getConfig(env) {
   switch (env) {
@@ -12,6 +12,7 @@ function getConfig(env) {
       walletUrl: 'https://wallet.near.org',
       helperUrl: 'https://helper.mainnet.near.org',
       explorerUrl: 'https://explorer.mainnet.near.org',
+      priceOracle: 'priceoracle.near'
     }
   case 'development':
   case 'testnet':
@@ -22,6 +23,7 @@ function getConfig(env) {
       walletUrl: 'https://wallet.testnet.near.org',
       helperUrl: 'https://helper.testnet.near.org',
       explorerUrl: 'https://explorer.testnet.near.org',
+      priceOracle: 'priceoracle.testnet'
     }
   case 'betanet':
     return {

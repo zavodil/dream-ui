@@ -6,6 +6,8 @@ import { initContract } from './utils'
 window.nearInitPromise = initContract()
   .then(() => {
 
+      console.log(`Contract: ${window.contract.contractId}. Current user: ${window.accountId}.`);
+
       window.token_contracts = [];
 
     ReactDOM.render(

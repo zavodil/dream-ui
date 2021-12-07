@@ -1,18 +1,24 @@
 import 'regenerator-runtime/runtime'
 import React from 'react'
-import {login, logout} from './utils'
+import {login, logout, ConvertToE18} from './utils'
 import * as nearAPI from 'near-api-js'
 import 'react-dropdown/style.css';
 import './global.css'
 import './app.css'
 import {useDetectOutsideClick} from "./includes/useDetectOutsideClick";
-import {Header, Footer, Notification, NearLogo} from "./includes/pageParts";
-import * as nearFunctions from "/includes/nearFunctions";
+import {Footer, NearLogo, Notification} from "./includes/pageParts";
 import DayPickerInput from 'react-day-picker/DayPickerInput';
 import 'react-day-picker/lib/style.css';
 
 import getConfig from './config'
+import getCoingeckoMap from './coingecko'
 import getAppSettings from './app-settings'
+import Big from "big.js";
+
+const TGas = Big(10).pow(12);
+const StorageCostPerByte = Big(10).pow(19);
+const TokenStorageDeposit = StorageCostPerByte.mul(250000);
+const TokenRegisterDeposit = StorageCostPerByte.mul(125);
 
 const appSettings = getAppSettings();
 const config = getConfig(process.env.NODE_ENV || 'development');
@@ -34,7 +40,8 @@ export default function App() {
     const [accountId, setAccountId] = React.useState("");
     const [tokenInput, setTokenInput] = React.useState("0.0");
     const [tokenInputAccountBalance, setTokenInputAccountBalance] = React.useState(0);
-    const [assetInput, setAssetInput] = React.useState("NEAR");
+    const [assetInput, setAssetInput] = React.useState("Near");
+    const [assetInputName, setAssetInputName] = React.useState("Near");
     const [assetInputPrice, setAssetInputPrice] = React.useState(0);
     const [assetInputPriceFormatted, setAssetInputPriceFormatted] = React.useState("");
     const [outputDifferenceInDays, setOutputDifferenceInDays] = React.useState("");
@@ -102,67 +109,121 @@ export default function App() {
         setLockTypeError(targetPriceOutput < assetInputPrice ? "Target Price is lower then current price" : "");
     }
 
+    const UpdateAssetInputName = (assetName) => {
+        const allTokenIds = Object.keys(allTokens);
+        let tokens = allTokenIds.filter(token => {
+                return allTokens[token].name.toLowerCase() === assetName.toLowerCase()
+            }
+        );
+        if (tokens.length === 1) {
+            setAssetInput(tokens[0])
+            setAssetInputName(assetName);
+        }
+        else {
+            throw ("Unknown Asset Name " + assetName)
+        }
+    }
+
 
     const ParseAssetInput = (value) => {
         setAssetInput(value);
-        setAssetInputPrice(0);
-        setAssetInputPriceFormatted(""); // TODO Add Pending
-        GetBalance(value);
-        UpdatePrice(value).then(newPrice => {
-            ValidateAssetInputPrice(newPrice)
-        });
-        setAssetInputPopup(false);
+        const allTokenIds = Object.keys(allTokens);
+        if(allTokenIds.length) {
+            let tokens = allTokenIds.filter(token => {
+                    return token === value || allTokens[token].name.toLowerCase() === value.toLowerCase()
+                }
+            );
+
+            console.log(tokens)
+
+            if (tokens.length === 1) {
+                let token_address = tokens[0];
+                let token_details = allTokens[token_address];
+                console.log(token_details)
+                UpdateAssetInputName(token_details.name);
+                setAssetInputPrice(0);
+                setAssetInputPriceFormatted(""); // TODO Add Pending
+                GetBalance(token_address);
+                UpdatePrice(token_address).then(newPrice => {
+                    ValidateAssetInputPrice(newPrice)
+                });
+                setAssetInputPopup(false);
+            }
+        }
     }
 
-    const WhitelistedTokens = () => {
-        return {
-            "NEAR":
+    const GetWhitelistedTokens = async () => {
+        let whitelistedTokens = await window.contract.get_whitelisted_tokens({"from_index": 0, "limit": 50});
+        let tokens = {
+            "Near":
                 {
                     "img": "https://s2.coinmarketcap.com/static/img/coins/64x64/6535.png",
                     "coingecko_name": "near",
                     "decimals": 24,
-                    "address": "near"
+                    "name": "Near"
                 },
-            "ETH":
+            "c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2.factory.bridge.near":
                 {
                     "img": "data:image/png;base64,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",
                     "coingecko_name": "ethereum",
                     "decimals": 18,
-                    "address": "c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"
+                    "name": "Ethereum"
                 },
-            "DAI":
+            "6b175474e89094c44da98b954eedeac495271d0f.factory.bridge.near":
                 {
                     "img": "https://raw.githubusercontent.com/uniswap/assets/master/blockchains/ethereum/assets/0x6B175474E89094C44Da98b954EedeAC495271d0F/logo.png",
                     "coingecko_name": "dai",
                     "decimals": 18,
-                    "address": "6b175474e89094c44da98b954eedeac495271d0f"
+                    "name": "DAI"
                 },
-            "USDC":
+            "a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.factory.bridge.near":
                 {
                     "img": "https://raw.githubusercontent.com/uniswap/assets/master/blockchains/ethereum/assets/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48/logo.png",
                     "coingecko_name": "usdc",
                     "decimals": 6,
-                    "address": "a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+                    "address": "a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+                    "name": "USDC"
                 },
-            "USDT":
+            "dac17f958d2ee523a2206206994597c13d831ec7.factory.bridge.near":
                 {
                     "img": "https://raw.githubusercontent.com/uniswap/assets/master/blockchains/ethereum/assets/0xdAC17F958D2ee523a2206206994597C13D831ec7/logo.png",
                     "coingecko_name": "tether",
                     "decimals": 6,
-                    "address": "dac17f958d2ee523a2206206994597c13d831ec7"
+                    "name": "USDT"
                 },
-            "WBTC":
+            "2260fac5e5542a773aa44fbcfedf7c193bc2c599.factory.bridge.near":
                 {
                     "img": "https://raw.githubusercontent.com/uniswap/assets/master/blockchains/ethereum/assets/0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599/logo.png",
                     "coingecko_name": "bitcoin",
                     "decimals": 8,
-                    "address": "2260fac5e5542a773aa44fbcfedf7c193bc2c599"
+                    "name": "Bitcoin"
                 }
         }
+
+        whitelistedTokens.map(token => {
+            tokens[token.asset_id] = {
+                img: token.metadata.icon,
+                decimals: token.metadata.decimals,
+                coingecko_name: getCoingeckoMap(token.asset_id),
+                name: token.metadata.name
+            };
+        })
+
+        console.log(tokens);
+
+        return tokens;
     };
 
     const GetTokenImage = (token) => {
-        return allTokens.hasOwnProperty(token) ? allTokens[assetInput].img : "";
+        if (allTokens.hasOwnProperty(token))
+            return allTokens[assetInput].img;
+        else{
+            const tokens = Object.keys(allTokens).filter(token_id => allTokens[token_id].name === token);
+            if(tokens.length > 0)
+                return  allTokens[tokens[0]].img;
+            else
+                return "";
+        }
     };
 
     const UnlockTypesList = () => {
@@ -202,7 +263,6 @@ export default function App() {
     };
 
     const IsTargetDateSelected = (unlockType) => {
-        console.log(unlockType)
         return (unlockType === "Target Date")
     };
 
@@ -265,14 +325,18 @@ export default function App() {
     };
 
     const createTokenObject = (token, details) => {
+        console.log(token)
         const isActive = token === assetInput;
         return <div className={isActive ? "popup-options-item" : "popup-options-item-inactive"}
-                    onClick={() => ParseAssetInput(token)} key={token}>
+                    onClick={() => {
+                        console.log(token);
+                        ParseAssetInput(token);
+                    }} key={token}>
             <img className="popup-option-image"
                  alt={token + " logo"}
                  src={details.img}
             />
-            <div className="popup-option-text">{token}</div>
+            <div className="popup-option-text">{details.name}</div>
         </div>;
     };
 
@@ -285,6 +349,10 @@ export default function App() {
 
             await setTokenContracts(allTokens).then(() => {
                 console.log(window.token_contracts);
+            })
+
+            await window.contract.get_tokens({"from_index": 0, "limit": 100}).then((tokens) => {
+                console.log(tokens)
             })
 
         } catch (e) {
@@ -326,15 +394,16 @@ export default function App() {
         changeMethods: [],
     };
 
-    const AddContractWithPromise = async (key, allTokens) => { //a function that returns a promise
+    const AddContractWithPromise = async (key, allTokens) => {
         window.token_contracts[key] = await new nearAPI.Contract(
             window.walletConnection.account(),
-            getContractAddress(allTokens[key].address), methods);
+            getContractAddress(key), methods);
         return Promise.resolve('ok')
     };
 
     const getContractAddress = (token_address) => {
-        return token_address + ".factory.bridge.near";
+        return token_address;
+        // token_address + ".factory.bridge.near";
     }
 
     const AddContract = async (key, allTokens) => {
@@ -347,8 +416,8 @@ export default function App() {
 
     React.useEffect(
         async () => {
-            const allTokens = WhitelistedTokens();
-            setAllTokens(allTokens);
+            const allTokens = await GetWhitelistedTokens();
+            await setAllTokens(allTokens);
 
             if (window.walletConnection.isSignedIn()) {
                 await OnSignIn(allTokens).then(() => {
@@ -370,16 +439,19 @@ export default function App() {
     );
 
     const GetBalance = (token) => {
-        if (token === "NEAR")
+        if (token === "Near")
             GetNearBalance().then(balance => {
                 if (balance < parseFloat(tokenInput))
                     setTokenInput(0);
             });
         else
-            GetFtBalance(token).then(balance => {
+            GetFtBalance(token, allTokens[token].decimals).then(balance => {
                 if (balance < parseFloat(tokenInput))
                     setTokenInput(0);
             });
+        /*else {
+            throw ("Unknown Decimals Number in GetBalance()")
+        }*/
     };
 
     const GetNearBalance = () => {
@@ -394,17 +466,17 @@ export default function App() {
         })
     }
 
-    const GetFtBalance = (token) => {
+    const GetFtBalance = (token, decimals) => {
         return new Promise((resolve, reject) => {
             window.token_contracts[token].ft_balance_of({
                 account_id: window.accountId
             })
                 .then(amount => {
-                    let balance = amount / Math.pow(10, allTokens[token].decimals);
+                    let balance = amount / Math.pow(10, decimals);
 
                     setTokenInputAccountBalance(
                         balance > 0
-                            ? balance.toFixed(8)
+                            ? parseFloat(balance.toFixed(8))
                             : 0
                     );
 
@@ -412,6 +484,7 @@ export default function App() {
                 })
                 .catch(err => {
                     console.log(err);
+                    alert(err);
                     return reject(0);
                 })
         });
@@ -516,6 +589,128 @@ export default function App() {
 
     const isLockTypeSet = IsLockTypeSet();
 
+    const LockTokens = async () => {
+        if(!assetInput || !targetPriceOutput || !allTokens.hasOwnProperty(assetInput)){
+            alert(`No data at LockTokens (${assetInput}, ${assetInputPrice}}`);
+        }
+        else {
+            let contract_id = await window.contract.get_token_name({
+                token_args: {
+                    token_id: assetInput,
+                    target_price: (targetPriceOutput * 10000).toFixed(0),
+                }
+            });
+            if(contract_id) {
+                console.log(`Token ${contract_id} is under construction...`);
+                let actions = [];
+                try {
+                    actions.push(GetCreateTokenAction()); // Todo if not created
+                    actions.push(GetRegisterTokenContractAction(contract_id)); // Todo if not registered
+                    actions.push(GetRegisterTokenUserAction(contract_id)); // Todo if not registered
+                    actions.push(GetLockTokensAction(contract_id));
+                    await window._near.sendTransactions(actions).then(resp => console.log(resp));
+                } catch (ex) {
+                    console.log(ex)
+                }
+            }
+            else {
+                alert("Contract_id is missing in LockTokens");
+            }
+        }
+    }
+
+    const GetRegisterTokenContractAction = (contract_id) => {
+        if(!contract_id || !assetInput){
+            alert(`No data at GetRegisterTokenContractAction (${assetInput}}`);
+        }
+        else {
+            return [
+                assetInput,
+                nearAPI.transactions.functionCall(
+                    "storage_deposit",
+                    {
+                        account_id: contract_id,
+                        registration_only: true,
+                    },
+                    TGas.mul(5).toFixed(0),
+                    TokenRegisterDeposit.toFixed(0)
+                ),
+            ];
+        }
+    }
+
+    const GetRegisterTokenUserAction = (contract_id) => {
+        if(!contract_id || !assetInput){
+            alert(`No data at GetRegisterTokenUserAction (${assetInput}}`);
+        }
+        else {
+            return [
+                contract_id,
+                nearAPI.transactions.functionCall(
+                    "storage_deposit",
+                    {
+                        account_id: window.accountId,
+                        registration_only: true,
+                    },
+                    TGas.mul(5).toFixed(0),
+                    TokenRegisterDeposit.toFixed(0)
+                ),
+            ];
+        }
+    }
+
+    const GetCreateTokenAction = () => {
+        if(!assetInput || !targetPriceOutput || !allTokens.hasOwnProperty(assetInput)){
+            alert(`No data at GetCreateTokenAction (${assetInput}, ${assetInputPrice}}`);
+        }
+        else {
+            return [
+                window.contract.contractId,
+                nearAPI.transactions.functionCall(
+                    "create_token",
+                    {
+                        token_args: {
+                            token_id: assetInput,
+                            target_price: (targetPriceOutput * 10000).toFixed(0),
+                            price_oracle_account_id: config.priceOracle
+                        }
+                    },
+                    TGas.mul(150).toFixed(0),
+                    TokenStorageDeposit.toFixed(0)
+                ),
+            ]
+        }
+    }
+
+    const GetLockTokensAction = (contract_id) => {
+        if(!contract_id || !assetInput || !assetInputPrice || !allTokens.hasOwnProperty(assetInput)){
+            alert(`No data at GetCreateTokenAction (${assetInput}, ${assetInputPrice}}`);
+        }
+        else {
+            let decimals = allTokens[assetInput].decimals;
+            let amount = 0;
+            if (decimals === 18)
+                amount = ConvertToE18(tokenInput.toString());
+            else if (decimals === 24)
+                amount = nearAPI.utils.format.parseNearAmount(tokenInput.toString());
+            else
+                throw (`Illegal token decimal: ${decimals}`);
+
+            return [
+                assetInput,
+                nearAPI.transactions.functionCall(
+                    "ft_transfer_call",
+                    {
+                        receiver_id: contract_id,
+                        amount: amount,
+                        msg: '',
+                    },
+                    TGas.mul(150).toFixed(0),
+                    1
+                ),
+            ]
+        }
+    }
 
     return (
         <>
@@ -554,7 +749,7 @@ export default function App() {
                                                autoComplete="off"
                                                className="popup-search-input-control"
                                                onChange={e => ParseAssetInput(e.target.value)}
-                                               value={assetInput}
+                                               value={assetInputName}
                                         />
                                     </div>
                                     <div className="common-basis-div">
@@ -663,7 +858,7 @@ export default function App() {
 <img src={GetTokenImage(assetInput)}
      className="token-logo"/>
 
-    <span className="token-name">{assetInput}</span>
+    <span className="token-name">{assetInputName}</span>
 
                                                     </div>
                                                     <svg width="12" height="7" viewBox="0 0 12 7" fill="none"
@@ -688,7 +883,7 @@ export default function App() {
                                             <div className="input-balance-row">
                                                 <div className="input-balance-value">
                                                     <div
-                                                        className="input-balance-text">Balance: {tokenInputAccountBalance} {assetInput}
+                                                        className="input-balance-text">Balance: {tokenInputAccountBalance} {assetInputName}
                                                     </div>
                                                     <button className="input-balance-max"
                                                             onClick={() => {
@@ -768,8 +963,13 @@ export default function App() {
                                             <div className="input-balance-row">
                                                 <div className="input-balance-value">
                                                     {IsTargetDateSelected(lockTypeOutput) &&
-                                                    <div className="input-days-difference">
-                                                        Days left: {outputDifferenceInDays}
+                                                    <div>
+                                                        <div className="input-days-difference">
+                                                            Days left: {outputDifferenceInDays}
+                                                        </div>
+                                                        <div className="form-warning">
+                                                            <strong>Under contraction</strong>
+                                                        </div>
                                                     </div>
                                                     }
                                                     {IsTargetPriceSelected(lockTypeOutput) &&
@@ -797,7 +997,8 @@ export default function App() {
                         <div>
                             {loggedIn ?
                                 <button className="main-button"
-                                        disabled={!!lockTypeError || parseFloat(tokenInput) === 0 || lockTypeOutput === ""}>
+                                        disabled={!!lockTypeError || parseFloat(tokenInput) === 0 || lockTypeOutput === "" || lockTypeOutput === "Target Date"}
+                                        onClick={() => LockTokens()}>
                                     <div>Lock</div>
                                 </button> :
 
@@ -816,4 +1017,5 @@ export default function App() {
             <Notification config={config} method={showNotification.method} data={showNotification.data}/>}
         </>
     );
+
 }

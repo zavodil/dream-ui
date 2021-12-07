@@ -251,6 +251,22 @@ aside footer *:last-child {
     input:focus {
         box-shadow: 0 0 10em rgba(255, 255, 255, 0.02) inset;
     }
+
+    .near-logo {
+        filter: invert(1);
+    }
+
+    button.top-menu-right-button {
+        background-color: #6b6b6b;
+    }
+
+    .top-menu-right-button .title{
+        color: #000;
+    }
+
+    .background-img{
+        opacity: 0.1;
+    }
 }
 
 
@@ -824,7 +840,7 @@ button.input-balance-max:hover, button.input-balance-max:focus {
     cursor: pointer;
     user-select: none;
     border: none;
-    height: 1.9rem;
+    height: 2.2rem;
     width: initial;
     padding: 0px 8px;
     -webkit-box-pack: justify;
@@ -930,7 +946,7 @@ button.input-balance-max:hover, button.input-balance-max:focus {
 
 .swap-page .grid .input .input-box .asset .ticker .token .token-name {
     width: fit-content;
-    margin: 0px 0.25rem;
+    margin: 0.6rem 0.5rem 0.4rem;
     font-size: 18px;
 }
 
