@@ -50,10 +50,7 @@ export const Header = (props) => {
 export const Footer = (props) => {
     return <div className="footer">
         <div className="github">
-            <div className="build-on-near"><a href="https://nearspace.info">BUILD ON NEAR</a></div>
-            <div className="brand">{props.appSettings.appFullName} | <a href={props.appSettings.github}
-                                                                        rel="nofollow"
-                                                                        target="_blank">Open Source</a></div>
+            <div className="build-on-near">{props.appSettings.appFullName}</div>
         </div>
         <div className="promo" dangerouslySetInnerHTML={{__html: props.appSettings.credits}}/>
     </div>

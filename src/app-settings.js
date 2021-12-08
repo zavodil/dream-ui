@@ -1,12 +1,12 @@
 function getAppSettings() {
     return {
-        urlMainnet: "https://drop.nearspace.info/",
-        urlTestnet: "https://testnet.drop.nearspace.info/",
-        appShortNme: "Dream Token",
-        appFullNme: "Dream Token App",
+        urlMainnet: "",
+        urlTestnet: "",
+        appShortName: "WenTokenSir",
+        appFullName: "WenTokenSir",
         appDescription: "",
-        github: "https://github.com/zavodil/dream-ui",
-        credits: `Made by Proximity`
+        github: "",
+        credits: `Powered by NEAR`
     };
 }
 

@@ -290,7 +290,7 @@ aside footer *:last-child {
     width: 100%;
     background-color: var(--light-gray);
     color: var(--fg);
-    height: 35px;
+    height: 25px;
     position: fixed;
     left: 0;
     bottom: 0;
@@ -330,7 +330,7 @@ aside footer *:last-child {
 }
 
 .footer .promo, .footer .github {
-    margin-top: 5px;
+    margin-top: 7px;
 }
 
 .footer .promo {
@@ -443,7 +443,7 @@ aside footer *:last-child {
     background: #ffffff;
     border-radius: 8px;
     position: absolute;
-    top: 45px;
+    top: 38px;
     width: 100%;
     right: 0;
     box-shadow: 0 1px 8px rgba(0, 0, 0, 0.3);
@@ -465,10 +465,13 @@ aside footer *:last-child {
     margin: 0;
 }
 
-.menu li {
+.menu li  {
     padding-left: 10px;
-    border-bottom: 1px solid #dddddd;
     padding-bottom: 0;
+}
+
+.menu li:not(:last-child)  {
+    border-bottom: 1px solid #dddddd;
 }
 
 .menu li a {
@@ -1212,5 +1215,17 @@ button.input-balance-max:hover, button.input-balance-max:focus {
 
     .content-mobile {
         display: block !important;
+    }
+
+    .top-grid {
+        grid-template-columns: 1fr 1fr!important;
+    }
+
+    .popup-box[data-reach-dialog-content] {
+         width: 70vw!important;
+    }
+
+    .background-img {
+        background-image: none!important;
     }
 }

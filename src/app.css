@@ -20,7 +20,19 @@
     margin-top: 8px;
 }
 
+.form-warning.locked{
+    padding-left: 20px;
+}
 .form-warning{
     color: pink;
     padding-top: 10px;
+}
+
+.lock-info{
+    font-weight: normal;
+    padding-top: 10px;
+}
+
+.unlock-errors{
+    padding-left: 20px;
 }

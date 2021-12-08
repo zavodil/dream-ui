@@ -8,7 +8,7 @@ window.nearInitPromise = initContract()
 
       console.log(`Contract: ${window.contract.contractId}. Current user: ${window.accountId}.`);
 
-      window.token_contracts = [];
+      //window.token_contracts = [];
 
     ReactDOM.render(
       <App />,

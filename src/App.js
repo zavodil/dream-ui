@@ -1,6 +1,6 @@
 import 'regenerator-runtime/runtime'
 import React from 'react'
-import {login, logout, ConvertToE18} from './utils'
+import {ConvertToE18, login, logout} from './utils'
 import * as nearAPI from 'near-api-js'
 import 'react-dropdown/style.css';
 import './global.css'
@@ -23,6 +23,10 @@ const TokenRegisterDeposit = StorageCostPerByte.mul(125);
 const appSettings = getAppSettings();
 const config = getConfig(process.env.NODE_ENV || 'development');
 const FRAC_DIGITS = 5;
+const UNDEFINED_IMAGE = "https://s2.coinmarketcap.com/static/img/coins/64x64/6535.png";
+const PRICE_ORACLE = "priceoracle.testnet";
+const DEFAULT_TOKEN_NAME = "Wrapped Near";
+const DEFAULT_TOKEN_ACCOUNT_ID = "wrap.testnet";
 
 const defaultUnlockHint = "Tokens will be locked until selected unlock event";
 
@@ -32,16 +36,19 @@ export default function App() {
     const navDropdownRef = React.useRef(null);
     const lockTypeRef = React.useRef(null);
     const tokenInputRef = React.useRef(null);
+    const tokenUnlockRef = React.useRef(null);
     const [isNavDropdownActive, setIsNaVDropdownActive] = useDetectOutsideClick(navDropdownRef, false);
 
+
     /* APP STATE */
+    const [loading, setLoading] = React.useState(true);
     const [input, setInput] = React.useState("");
     const [deposit, setDeposit] = React.useState(0);
     const [accountId, setAccountId] = React.useState("");
     const [tokenInput, setTokenInput] = React.useState("0.0");
     const [tokenInputAccountBalance, setTokenInputAccountBalance] = React.useState(0);
-    const [assetInput, setAssetInput] = React.useState("Near");
-    const [assetInputName, setAssetInputName] = React.useState("Near");
+    const [assetInput, setAssetInput] = React.useState(DEFAULT_TOKEN_ACCOUNT_ID);
+    const [assetInputName, setAssetInputName] = React.useState(DEFAULT_TOKEN_NAME);
     const [assetInputPrice, setAssetInputPrice] = React.useState(0);
     const [assetInputPriceFormatted, setAssetInputPriceFormatted] = React.useState("");
     const [outputDifferenceInDays, setOutputDifferenceInDays] = React.useState("");
@@ -58,14 +65,45 @@ export default function App() {
     const [loggedIn, setLoggedIn] = React.useState(false);
 
 
-    const [allTokens, setAllTokens] = React.useState({});
+    const [allWhitelistedTokens, setAllWhitelistedTokens] = React.useState({});
+    const [allWenTokens, setAllWenTokens] = React.useState({});
 
+    const [userBalances, setUserBalances] = React.useState({});
+    const [selectedUserToken, setSelectedUserToken] = React.useState("");
+    const [hasUserBalances, setHasUserBalances] = React.useState(false);
+    const [selectedUserTokenBalance, setSelectedUserTokenBalance] = React.useState("0.0");
+    const [tokenLockAmountInput, setTokenLockAmountInput] = React.useState("0.0");
+    const [unlockTypeError, setUnlockTypeError] = React.useState("");
+    const [assetLockedPopup, setAssetLockedPopup] = React.useState(false);
+    const [parseLockedAssetInputTextbox, setParseLockedAssetInputTextbox] = React.useState("");
+
+    const [tokenAlreadyCreated, setTokenAlreadyCreated] = React.useState(false);
+    const [tokenAlreadyCreatedName, setTokenAlreadyCreatedName] = React.useState("");
 
     /* APP */
     const inputChange = (value) => {
         setInput(value);
         setButtonDisabled(!parseFloat(value) || parseFloat(value) < 0);
     };
+
+    const ParseLockAmountInput = (value) => {
+        let float = parseFloat(value);
+        if (!isNaN(float)) {
+            if (float < 0 || float > selectedUserTokenBalance) {
+                setUnlockTypeError("Not enough balance");
+            } else {
+                setUnlockTypeError("");
+            }
+            setTokenLockAmountInput(float);
+        } else {
+            setTimeout(() => {
+                tokenUnlockRef.current.focus();
+                tokenUnlockRef.current.select();
+            }, 100);
+            setTokenLockAmountInput(0);
+        }
+    };
+
 
     const ParseTokenInput = (value) => {
         let float = parseFloat(value);
@@ -96,41 +134,55 @@ export default function App() {
     };
 
     const ValidateTargetPriceOutput = (targetPriceOutput) => {
-        console.log("ValidateTargetPriceOutput")
-        console.log(targetPriceOutput)
-        console.log(assetInputPrice)
         setLockTypeError(targetPriceOutput < assetInputPrice ? "Target Price is lower then current price" : "");
     }
 
     const ValidateAssetInputPrice = (assetInputPrice) => {
-        console.log("ValidateAssetInputPrice")
-        console.log(targetPriceOutput)
-        console.log(assetInputPrice)
         setLockTypeError(targetPriceOutput < assetInputPrice ? "Target Price is lower then current price" : "");
     }
 
-    const UpdateAssetInputName = (assetName) => {
-        const allTokenIds = Object.keys(allTokens);
+    const UpdateAssetInputName = async (assetName) => {
+        const allTokenIds = Object.keys(allWhitelistedTokens);
         let tokens = allTokenIds.filter(token => {
-                return allTokens[token].name.toLowerCase() === assetName.toLowerCase()
+                return allWhitelistedTokens[token].name.toLowerCase() === assetName.toLowerCase()
             }
         );
         if (tokens.length === 1) {
             setAssetInput(tokens[0])
             setAssetInputName(assetName);
-        }
-        else {
+            await CheckWenTokenAvailability()
+        } else {
             throw ("Unknown Asset Name " + assetName)
         }
     }
 
+    const CheckWenTokenAvailability = async (targetPrice) => {
+        if (targetPrice === undefined)
+            targetPrice = targetPriceOutput;
+        const wenTokens = Object.keys(allWenTokens);
+        if (wenTokens.length) {
+            let sameTokens = wenTokens.filter(token_index => {
+                const token = allWenTokens[token_index];
+                return (
+                    parseFloat(token.minimum_unlock_price.multiplier) == convertTargetPriceOutput(targetPrice) &&
+                    token.asset_id == assetInput
+                );
+            })
+            setTokenAlreadyCreated(Object.keys(sameTokens).length > 0);
+            if (Object.keys(sameTokens).length) {
+                setTokenAlreadyCreatedName(await GetTokenName());
+            }
+        }
+    }
 
-    const ParseAssetInput = (value) => {
-        setAssetInput(value);
-        const allTokenIds = Object.keys(allTokens);
-        if(allTokenIds.length) {
+    const ParseLockedAssetInput = (value) => {
+        setParseLockedAssetInputTextbox(value);
+        const allTokenIds = Object.keys(userBalances);
+        if (allTokenIds.length) {
             let tokens = allTokenIds.filter(token => {
-                    return token === value || allTokens[token].name.toLowerCase() === value.toLowerCase()
+                console.log(token)
+                console.log(userBalances[token].meta.name)
+                    return userBalances[token].meta.name.toLowerCase() === value.toLowerCase()
                 }
             );
 
@@ -138,11 +190,32 @@ export default function App() {
 
             if (tokens.length === 1) {
                 let token_address = tokens[0];
-                let token_details = allTokens[token_address];
-                console.log(token_details)
+                setSelectedUserToken(token_address);
+                setSelectedUserTokenBalance(userBalances[token_address].balance.toFixed(2));
+                setParseLockedAssetInputTextbox(userBalances[token_address].meta.name);
+
+                setAssetLockedPopup(false);
+            }
+        }
+    }
+
+    const ParseAssetInput = (value) => {
+        setAssetInput(value);
+        setAssetInputName(value);
+        const allTokenIds = Object.keys(allWhitelistedTokens);
+        if (allTokenIds.length) {
+            let tokens = allTokenIds.filter(token => {
+                    return token === value || allWhitelistedTokens[token].name.toLowerCase() === value.toLowerCase()
+                }
+            );
+
+            if (tokens.length === 1) {
+                let token_address = tokens[0];
+                console.log("Select token: " + token_address)
+                let token_details = allWhitelistedTokens[token_address];
                 UpdateAssetInputName(token_details.name);
                 setAssetInputPrice(0);
-                setAssetInputPriceFormatted(""); // TODO Add Pending
+                setAssetInputPriceFormatted("");
                 GetBalance(token_address);
                 UpdatePrice(token_address).then(newPrice => {
                     ValidateAssetInputPrice(newPrice)
@@ -152,9 +225,22 @@ export default function App() {
         }
     }
 
+    const GetWenTokens = async () => {
+        let wenTokens = await window.contract.get_tokens({"from_index": 0, "limit": 50});
+        return wenTokens;
+    }
+
     const GetWhitelistedTokens = async () => {
-        let whitelistedTokens = await window.contract.get_whitelisted_tokens({"from_index": 0, "limit": 50});
+        let whitelistedTokens = await window.contract.get_whitelisted_tokens({"from_index": 0, "limit": 100});
         let tokens = {
+            "wrap.testnet": {
+                    "img": "https://s2.coinmarketcap.com/static/img/coins/64x64/6535.png",
+                    "coingecko_name": "near",
+                    "decimals": 24,
+                    "name": "Wrapped Near"
+                }
+        }
+        /*let tokens = {
             "Near":
                 {
                     "img": "https://s2.coinmarketcap.com/static/img/coins/64x64/6535.png",
@@ -198,7 +284,7 @@ export default function App() {
                     "decimals": 8,
                     "name": "Bitcoin"
                 }
-        }
+        }*/
 
         whitelistedTokens.map(token => {
             tokens[token.asset_id] = {
@@ -215,14 +301,14 @@ export default function App() {
     };
 
     const GetTokenImage = (token) => {
-        if (allTokens.hasOwnProperty(token))
-            return allTokens[assetInput].img;
-        else{
-            const tokens = Object.keys(allTokens).filter(token_id => allTokens[token_id].name === token);
-            if(tokens.length > 0)
-                return  allTokens[tokens[0]].img;
+        if (allWhitelistedTokens.hasOwnProperty(token))
+            return allWhitelistedTokens[assetInput].img;
+        else {
+            const tokens = Object.keys(allWhitelistedTokens).filter(token_id => allWhitelistedTokens[token_id].name === token);
+            if (tokens.length > 0)
+                return allWhitelistedTokens[tokens[0]].img;
             else
-                return "";
+                return UNDEFINED_IMAGE;
         }
     };
 
@@ -318,18 +404,16 @@ export default function App() {
     };
 
     const TokensList = () => {
-        let block = Object.keys(allTokens).map(token => createTokenObject(token, allTokens[token]));
+        let block = Object.keys(allWhitelistedTokens).map(token => createTokenObject(token, allWhitelistedTokens[token]));
         return <div className="popup-options">
             {block}
         </div>;
     };
 
     const createTokenObject = (token, details) => {
-        console.log(token)
         const isActive = token === assetInput;
         return <div className={isActive ? "popup-options-item" : "popup-options-item-inactive"}
                     onClick={() => {
-                        console.log(token);
                         ParseAssetInput(token);
                     }} key={token}>
             <img className="popup-option-image"
@@ -340,25 +424,88 @@ export default function App() {
         </div>;
     };
 
+    const LockedTokensList = () => {
+        let block = Object.keys(userBalances).map(token_id => createLockedTokenObject(token_id, userBalances[token_id]));
+        return <div className="popup-options">
+            {block}
+        </div>;
+    }
+
+    const createLockedTokenObject = (token, details) => {
+        const isActive = token === selectedUserToken;
+        return <div className={isActive ? "popup-options-item" : "popup-options-item-inactive"}
+                    onClick={() => {
+                        ParseLockedAssetInput(details.meta.name);
+                    }} key={token}>
+            <img className="popup-option-image"
+                 alt={details.meta.name + " logo"}
+                 src={details.img}
+            />
+            <div className="popup-option-text">{details.meta.name}</div>
+        </div>;
+    };
+
     const IsLockTypeSet = () => ["Target Price", "Target Date"].includes(lockTypeOutput);
 
 
     /* ON LOAD EVENT */
-    const OnSignIn = async (allTokens) => {
+    const OnSignIn = async (allWenTokens, allWhitelistedTokens) => {
         try {
 
+            /*
             await setTokenContracts(allTokens).then(() => {
                 console.log(window.token_contracts);
-            })
+            })*/
 
-            await window.contract.get_tokens({"from_index": 0, "limit": 100}).then((tokens) => {
-                console.log(tokens)
-            })
+            await LoadUserTokens(allWenTokens, allWhitelistedTokens);
 
         } catch (e) {
             Notify({method: "fail", data: e.message});
         }
     };
+
+    const LoadUserTokens = async (allWenTokens, allWhitelistedTokens) => {
+        setLoading(true);
+        const wenTokens = Object.keys(allWenTokens);
+        let userBalances = [];
+        if (wenTokens.length > 0) {
+            let promises = wenTokens.map(async token_index => {
+                const token = allWenTokens[token_index];
+                let token_contract_id = `${token.token_id}.${window.contract.contractId}`
+                return GetFtBalance(token_contract_id, token.meta.decimals, false)
+            });
+
+            Promise.all(promises).then(values => {
+                const balances = Object.keys(values);
+                balances.map(balance_index => {
+                    let balance = values[balance_index];
+                    const token = allWenTokens[balance_index];
+                    let token_contract_id = `${token.token_id}.${window.contract.contractId}`
+                    if (balance > 0) {
+                        userBalances[token_contract_id] = {
+                            asset_id: token.asset_id,
+                            token_id: token.token_id,
+                            balance,
+                            meta: token.meta,
+                            img: token.meta.icon,
+                            locked_token_account_id: token.locked_token_account_id
+                        }
+                    }
+                })
+                // console.log("userBalances"); console.log(userBalances);
+                setUserBalances(userBalances);
+
+                if (Object.keys(userBalances).length > 0) {
+                    let token = Object.keys(userBalances)[0];
+                    setSelectedUserToken(token);
+                    setSelectedUserTokenBalance(userBalances[token].balance.toFixed(2));
+                    setParseLockedAssetInputTextbox(userBalances[token].meta.name);
+                }
+                setHasUserBalances(Object.keys(userBalances).length > 0);
+            })
+        }
+        setLoading(false);
+    }
 
     /* UI EVENTS */
     const NavMenuOnClick = () => setIsNaVDropdownActive(!isNavDropdownActive);
@@ -389,38 +536,44 @@ export default function App() {
 
     const GetPriceUrl = (token) => `https://api.coingecko.com/api/v3/simple/price?ids=${token.toLowerCase()}&vs_currencies=usd`;
 
+    /*
     const methods = {
         viewMethods: ['ft_balance_of', 'storage_balance_of'],
         changeMethods: [],
-    };
+    };*/
 
-    const AddContractWithPromise = async (key, allTokens) => {
+    /*const AddContractWithPromise = async (key, allTokens) => {
         window.token_contracts[key] = await new nearAPI.Contract(
             window.walletConnection.account(),
             getContractAddress(key), methods);
         return Promise.resolve('ok')
-    };
+    };*/
 
-    const getContractAddress = (token_address) => {
+    /*const getContractAddress = (token_address) => {
         return token_address;
         // token_address + ".factory.bridge.near";
-    }
+    }*/
 
-    const AddContract = async (key, allTokens) => {
+    /*const AddContract = async (key, allTokens) => {
         return AddContractWithPromise(key, allTokens)
-    }
+    }*/
 
-    const setTokenContracts = async (allTokens) => {
+    /*const setTokenContracts = async (allTokens) => {
         return Promise.all(Object.keys(allTokens).map(key => AddContract(key, allTokens)))
-    };
+    };*/
 
     React.useEffect(
         async () => {
-            const allTokens = await GetWhitelistedTokens();
-            await setAllTokens(allTokens);
+            setLoading(true);
+            const allWhitelistedTokens = await GetWhitelistedTokens();
+            await setAllWhitelistedTokens(allWhitelistedTokens);
+            setLoading(false);
+
+            const allWenTokens = await GetWenTokens();
+            await setAllWenTokens(allWenTokens);
 
             if (window.walletConnection.isSignedIn()) {
-                await OnSignIn(allTokens).then(() => {
+                await OnSignIn(allWenTokens, allWhitelistedTokens).then(() => {
                     setLoggedIn(true);
                     setAccountId(window.accountId || "Connect wallet");
                 })
@@ -430,10 +583,12 @@ export default function App() {
                 setAccountId("Connect wallet");
             }
 
-            if (window.accountId)
-                GetNearBalance();
+            if (window.accountId) {
+                await GetFtBalance(DEFAULT_TOKEN_ACCOUNT_ID, allWhitelistedTokens[DEFAULT_TOKEN_ACCOUNT_ID].decimals, true);
+                setTokenInput(0)
+            }
 
-            UpdatePrice();
+            await UpdatePrice(DEFAULT_TOKEN_ACCOUNT_ID, allWhitelistedTokens);
         },
         []
     );
@@ -445,13 +600,10 @@ export default function App() {
                     setTokenInput(0);
             });
         else
-            GetFtBalance(token, allTokens[token].decimals).then(balance => {
+            GetFtBalance(token, allWhitelistedTokens[token].decimals, true).then(balance => {
                 if (balance < parseFloat(tokenInput))
                     setTokenInput(0);
             });
-        /*else {
-            throw ("Unknown Decimals Number in GetBalance()")
-        }*/
     };
 
     const GetNearBalance = () => {
@@ -466,47 +618,47 @@ export default function App() {
         })
     }
 
-    const GetFtBalance = (token, decimals) => {
+    const GetFtBalance = async (token, decimals, updateBalance) => {
+        //console.log("GetFtBalance " + token)
+        const connection = getNearAccountConnection();
         return new Promise((resolve, reject) => {
-            window.token_contracts[token].ft_balance_of({
-                account_id: window.accountId
-            })
+            new nearAPI.Account(connection, token).viewFunction(token, "ft_balance_of", {account_id: window.accountId})
                 .then(amount => {
                     let balance = amount / Math.pow(10, decimals);
 
-                    setTokenInputAccountBalance(
-                        balance > 0
-                            ? parseFloat(balance.toFixed(8))
-                            : 0
-                    );
+                    if (updateBalance) {
+                        setTokenInputAccountBalance(
+                            balance > 0
+                                ? parseFloat(balance.toFixed(8))
+                                : 0
+                        );
+                    }
 
                     return resolve(balance);
-                })
-                .catch(err => {
-                    console.log(err);
-                    alert(err);
-                    return reject(0);
-                })
+                }).catch(err => {
+                throw (err);
+                alert(err);
+                return reject(0);
+            });
         });
     }
 
-    const UpdatePrice = async (token) => {
+    const UpdatePrice = async (token, whitelistedTokens) => {
+        if(whitelistedTokens === undefined)
+            whitelistedTokens = allWhitelistedTokens;
+
         if (token === undefined)
             token = assetInput;
-        console.log("request price for " + token);
 
-
-        if (token && allTokens.hasOwnProperty(token)) {
-            let ticker = allTokens[token].coingecko_name;
+        if (token && whitelistedTokens.hasOwnProperty(token)) {
+            let ticker = whitelistedTokens[token].coingecko_name;
+            console.log(`Request price for ${ticker} [${token}]`);
 
             return await fetchWithTimeout(GetPriceUrl(ticker), {
                 timeout: 9000
             }).then(response => response.json())
                 .then(rows => {
-
-
                     try {
-
                         if (rows.hasOwnProperty(ticker)) {
                             let price = parseFloat(rows[ticker].usd);
                             setAssetInputPrice(price);
@@ -589,41 +741,102 @@ export default function App() {
 
     const isLockTypeSet = IsLockTypeSet();
 
-    const LockTokens = async () => {
-        if(!assetInput || !targetPriceOutput || !allTokens.hasOwnProperty(assetInput)){
-            alert(`No data at LockTokens (${assetInput}, ${assetInputPrice}}`);
+    const convertTargetPriceOutput = (targetPrice) => {
+        if (targetPrice === undefined)
+            targetPrice = targetPriceOutput;
+        return (targetPrice * 10000).toFixed(0);
+    }
+
+    const GetTokenName = async () => {
+        return await window.contract.get_token_name({
+            token_args: {
+                token_id: assetInput,
+                target_price: convertTargetPriceOutput()
+            }
+        });
+    }
+
+    const UnlockTokens = async () => {
+        let actions = [];
+        let token = userBalances[selectedUserToken];
+        let decimals = token.meta.decimals;
+        if(selectedUserToken && decimals > 0)
+        try {
+            let amount = 0;
+            if (decimals === 18)
+                amount = ConvertToE18(tokenLockAmountInput.toString());
+            else if (decimals === 24)
+                amount = nearAPI.utils.format.parseNearAmount(tokenLockAmountInput.toString());
+            else
+                throw (`Illegal token decimal: ${decimals}`);
+
+            actions.push([
+                PRICE_ORACLE,
+                nearAPI.transactions.functionCall(
+                    "oracle_call",
+                    {
+                        receiver_id: selectedUserToken,
+                        asset_ids: [token.asset_id],
+                        amount,
+                        msg: ""
+                    },
+                    TGas.mul(150).toFixed(0),
+                    1
+                )]);
+            await window._near.sendTransactions(actions).then(resp => console.log(resp));
+        } catch (ex) {
+            console.log(ex)
         }
-        else {
-            let contract_id = await window.contract.get_token_name({
-                token_args: {
-                    token_id: assetInput,
-                    target_price: (targetPriceOutput * 10000).toFixed(0),
-                }
-            });
-            if(contract_id) {
-                console.log(`Token ${contract_id} is under construction...`);
+    }
+
+    const LockTokens = async () => {
+        if (!assetInput || !targetPriceOutput || !allWhitelistedTokens.hasOwnProperty(assetInput)) {
+            alert(`No data at LockTokens (${assetInput}, ${assetInputPrice}}`);
+        } else {
+            let contract_id = await GetTokenName();
+            if (contract_id) {
+                console.log(`Token ${contract_id} (${assetInput}) is under construction...`);
                 let actions = [];
                 try {
-                    actions.push(GetCreateTokenAction()); // Todo if not created
-                    actions.push(GetRegisterTokenContractAction(contract_id)); // Todo if not registered
-                    actions.push(GetRegisterTokenUserAction(contract_id)); // Todo if not registered
+                    if (!tokenAlreadyCreated) {
+                        actions.push(GetCreateTokenAction());
+                    }
+                    if (await IsStorageDepositRequired(assetInput, contract_id)) {
+                        actions.push(GetRegisterTokenContractAction(contract_id));
+                    }
+                    if (await IsStorageDepositRequired(contract_id, window.accountId)) {
+                        actions.push(GetRegisterTokenUserAction(contract_id));
+                    }
                     actions.push(GetLockTokensAction(contract_id));
+
                     await window._near.sendTransactions(actions).then(resp => console.log(resp));
                 } catch (ex) {
                     console.log(ex)
                 }
-            }
-            else {
+            } else {
                 alert("Contract_id is missing in LockTokens");
             }
         }
     }
 
-    const GetRegisterTokenContractAction = (contract_id) => {
-        if(!contract_id || !assetInput){
-            alert(`No data at GetRegisterTokenContractAction (${assetInput}}`);
+    const IsStorageDepositRequired = async (contract_id, account_id) => {
+        const connection = getNearAccountConnection();
+
+        try {
+            return await new nearAPI.Account(connection, contract_id).viewFunction(contract_id, "storage_balance_of", {account_id}).then(resp => {
+                console.log(`${contract_id} / ${account_id}`);
+                console.log(resp);
+                return (resp === null || resp.total === '0')
+            })
+        } catch (e) {
+            return true;
         }
-        else {
+    }
+
+    const GetRegisterTokenContractAction = (contract_id) => {
+        if (!contract_id || !assetInput) {
+            alert(`No data at GetRegisterTokenContractAction (${assetInput}}`);
+        } else {
             return [
                 assetInput,
                 nearAPI.transactions.functionCall(
@@ -640,10 +853,9 @@ export default function App() {
     }
 
     const GetRegisterTokenUserAction = (contract_id) => {
-        if(!contract_id || !assetInput){
+        if (!contract_id || !assetInput) {
             alert(`No data at GetRegisterTokenUserAction (${assetInput}}`);
-        }
-        else {
+        } else {
             return [
                 contract_id,
                 nearAPI.transactions.functionCall(
@@ -660,10 +872,9 @@ export default function App() {
     }
 
     const GetCreateTokenAction = () => {
-        if(!assetInput || !targetPriceOutput || !allTokens.hasOwnProperty(assetInput)){
+        if (!assetInput || !targetPriceOutput || !allWhitelistedTokens.hasOwnProperty(assetInput)) {
             alert(`No data at GetCreateTokenAction (${assetInput}, ${assetInputPrice}}`);
-        }
-        else {
+        } else {
             return [
                 window.contract.contractId,
                 nearAPI.transactions.functionCall(
@@ -683,11 +894,10 @@ export default function App() {
     }
 
     const GetLockTokensAction = (contract_id) => {
-        if(!contract_id || !assetInput || !assetInputPrice || !allTokens.hasOwnProperty(assetInput)){
-            alert(`No data at GetCreateTokenAction (${assetInput}, ${assetInputPrice}}`);
-        }
-        else {
-            let decimals = allTokens[assetInput].decimals;
+        if (!contract_id || !assetInput || !assetInputPrice || !allWhitelistedTokens.hasOwnProperty(assetInput)) {
+            alert(`No data at GetLockTokensAction (${assetInput}, ${assetInputPrice}}`);
+        } else {
+            let decimals = allWhitelistedTokens[assetInput].decimals;
             let amount = 0;
             if (decimals === 18)
                 amount = ConvertToE18(tokenInput.toString());
@@ -714,18 +924,9 @@ export default function App() {
 
     return (
         <>
-            { /* <Header onClick={NavMenuOnClick}
-                    title={accountId}
-                    config={config}
-                    deposit={deposit}
-                    navDropdownRef={navDropdownRef}
-                    isNavDropdownActive={isNavDropdownActive}
-                    appSettings={appSettings}/> */}
-
-
             {assetInputPopup && <div data-focus-lock-disabled="false">
                 <div>
-                    <div className="popup" data-reach-dialog-overlay="" /*style={"opacity: 1;"}*/>
+                    <div className="popup" data-reach-dialog-overlay="">
                         <div aria-modal="true" role="dialog" tabIndex="-1" aria-label="dialog"
                              className="popup-box" data-reach-dialog-content="">
                             <div className="popup-box-1">
@@ -763,8 +964,49 @@ export default function App() {
                         </div>
                     </div>
                 </div>
-            </div>
-            }
+            </div>}
+
+            {assetLockedPopup && <div data-focus-lock-disabled="false">
+                <div>
+                    <div className="popup" data-reach-dialog-overlay="">
+                        <div aria-modal="true" role="dialog" tabIndex="-1" aria-label="dialog"
+                             className="popup-box" data-reach-dialog-content="">
+                            <div className="popup-box-1">
+                                <div className="popup-box-2">
+                                    <div className="popup-title">
+                                        <div className="popup-title-text">Select a token</div>
+                                        <div onClick={() => setAssetInputPopup(false)} className="close-popup">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
+                                                 viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                                                 strokeLinecap="round" strokeLinejoin="round"
+                                                 className="sc-1cchcrx-1 bNKSgQ">
+                                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <div className="popup-search-input">
+                                        <input type="text"
+                                               id="token-search-input"
+                                               placeholder="Search name or paste address"
+                                               autoComplete="off"
+                                               className="popup-search-input-control"
+                                               onChange={e => ParseLockedAssetInput(e.target.value)}
+                                               value={parseLockedAssetInputTextbox}
+                                        />
+                                    </div>
+                                    <div className="common-basis-div">
+                                        <div className="common-basis-block">
+                                            <div className="common-basis">Your portfolio:</div>
+                                        </div>
+                                        <LockedTokensList/>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>}
 
             {lockTypeOutputPopup && <div data-focus-lock-disabled="false">
                 <div>
@@ -843,11 +1085,13 @@ export default function App() {
             <main>
                 <div className="background-img"/>
 
-                <div className="main">
+                {currentMode === "Lock" && <div className="lock main">
                     <div className="sub-title">Lock tokens</div>
 
+                    {loading && <div className="form-warning locked">Loading...</div>}
+
                     <div className="swap-page">
-                        <div className="grid">
+                        {!loading && <div className="grid">
                             <div>
                                 <div className="input">
                                     <div className="input-box">
@@ -939,7 +1183,10 @@ export default function App() {
                                                        type="number" step="0.1"
                                                        placeholder="0.0" minLength="1"
                                                        maxLength="79" spellCheck="false"
-                                                       onChange={e => ParseTargetPriceOutput(e.target.value)}
+                                                       onChange={e => {
+                                                           ParseTargetPriceOutput(e.target.value);
+                                                           CheckWenTokenAvailability(e.target.value);
+                                                       }}
                                                        ref={lockTypeRef}
                                                        value={targetPriceOutput}
                                                        disabled={!isLockTypeSet}
@@ -973,9 +1220,19 @@ export default function App() {
                                                     </div>
                                                     }
                                                     {IsTargetPriceSelected(lockTypeOutput) &&
-                                                    <div className="input-balance-text">
-                                                        Current Price: {assetInputPriceFormatted}
-                                                    </div>}
+                                                    <div>
+                                                        <div className="input-balance-text">
+                                                            Current Price: {assetInputPriceFormatted}
+                                                        </div>
+                                                        {tokenAlreadyCreated &&
+                                                        <div className="lock-info">Token Already
+                                                            created: {tokenAlreadyCreatedName}</div>}
+                                                        {!tokenAlreadyCreated &&
+                                                        <div className="lock-info">Token wasn't created yet. You will
+                                                            have to pay ~2.5 NEAR to
+                                                            deploy it</div>}
+                                                    </div>
+                                                    }
 
                                                     <div className="input-balance-price-error input-error">
                                                         {lockTypeError}
@@ -990,7 +1247,7 @@ export default function App() {
 
                             </div>
 
-                        </div>
+                        </div>}
 
                         <div className="separator"/>
 
@@ -1009,7 +1266,95 @@ export default function App() {
                         </div>
 
                     </div>
-                </div>
+                </div>}
+
+                {currentMode === "Unlock" && <div className="unlock main">
+                    <div className="sub-title">Unlock tokens</div>
+
+                    {loading && <div className="form-warning locked">Loading...</div>}
+
+                    {!loading && !hasUserBalances && <div className="form-warning locked">Locked tokens were not found in your Portfolio</div>}
+
+                    <div className="swap-page">
+                        {!loading && hasUserBalances && <div className="grid">
+                            <div>
+                                <div className="input">
+                                    <div className="input-box">
+                                        <div className="asset">
+                                            <button className="asset-1" onClick={() => setAssetLockedPopup(true)}>
+                                                <span className="ticker">
+                                                    <div className="token">
+<img src={GetTokenImage(userBalances[selectedUserToken].token_id)}
+     className="token-logo"/>
+
+    <span className="token-name">{userBalances[selectedUserToken].meta.name}</span>
+
+                                                    </div>
+                                                    <svg width="12" height="7" viewBox="0 0 12 7" fill="none"
+                                                         xmlns="http://www.w3.org/2000/svg"
+                                                         className="image-arrow-down"><path
+                                                        d="M0.97168 1L6.20532 6L11.439 1" stroke="#AEAEAE"></path></svg>
+                                                </span>
+                                            </button>
+
+                                            <input className="token-amount-input"
+                                                   inputMode="decimal" autoComplete="off" autoCorrect="off"
+                                                   type="number" step="0.1"
+                                                   placeholder="0.0" minLength="1"
+                                                   maxLength="79" spellCheck="false"
+                                                   ref={tokenUnlockRef}
+                                                   onChange={e => ParseLockAmountInput(e.target.value)}
+                                                   value={tokenLockAmountInput}
+                                            />
+                                        </div>
+
+                                        {loggedIn && <div className="input-balance">
+                                            <div className="input-balance-row">
+                                                <div className="input-balance-value">
+                                                    <div
+                                                        className="input-balance-text">Balance: {selectedUserTokenBalance} {userBalances[selectedUserToken].meta.symbol}
+                                                    </div>
+                                                    <button className="input-balance-max"
+                                                            onClick={() => {
+                                                                setTokenLockAmountInput(selectedUserTokenBalance.toString().replace(",", ""))
+                                                            }}>(Max)
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        }
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                            <div className="input-balance-price-error input-error unlock-errors">
+                                {unlockTypeError}
+                            </div>
+
+                        </div>}
+
+                        <div className="separator"/>
+
+                        <div>
+                            {loggedIn ?
+                                <button className="main-button"
+                                        disabled={parseFloat(tokenLockAmountInput) === 0 || !hasUserBalances || unlockTypeError !== ""}
+                                        onClick={() => UnlockTokens()}>
+                                    <div>Unlock</div>
+                                </button> :
+
+                                <button className="main-button inactive" onClick={login}>
+                                    <div>Connect Wallet</div>
+                                </button>
+                            }
+                        </div>
+
+                    </div>
+
+                </div>}
 
             </main>
             <Footer appSettings={appSettings}/>
