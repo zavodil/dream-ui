@@ -312,6 +312,7 @@ aside footer *:last-child {
     padding: 0.2em 0.3em 0.1em 0.3em;
     margin: 0 0.3em 0 0.75em;
     background-color: var(--nav-background-color);
+    color: var(--light-gray);
     height: var(--footer-height);
 }
 
@@ -843,7 +844,7 @@ button.input-balance-max:hover, button.input-balance-max:focus {
     cursor: pointer;
     user-select: none;
     border: none;
-    height: 2.2rem;
+    height: 44px;
     width: initial;
     padding: 0px 8px;
     -webkit-box-pack: justify;
@@ -1000,10 +1001,10 @@ button.input-balance-max:hover, button.input-balance-max:focus {
 
 .swap-page .grid .input .input-box .asset .token-logo {
     margin-right: 0.1rem;
-    width: 24px;
-    height: 24px;
+    width: 32px;
+    height: 32px;
     box-shadow: rgb(0 0 0 / 8%) 0px 6px 10px;
-    border-radius: 24px;
+    border-radius: 32px;
 }
 
 .popup-token {
@@ -1164,7 +1165,6 @@ button.input-balance-max:hover, button.input-balance-max:focus {
 }
 
 .popup-options-item {
-    cursor: text;
     border: 1px solid transparent;
     border-radius: 10px;
     display: flex;
@@ -1178,14 +1178,14 @@ button.input-balance-max:hover, button.input-balance-max:focus {
 }
 
 .popup-options-item-inactive {
-    cursor: pointer;
     border: 1px solid rgb(64, 68, 79);
     border-radius: 10px;
     display: flex;
     padding: 6px;
     -webkit-box-align: center;
     align-items: center;
-     margin: 4px !important;
+    margin: 4px !important;
+    cursor: default;
  }
 
 .popup-options-item-inactive:hover {
@@ -1194,10 +1194,10 @@ button.input-balance-max:hover, button.input-balance-max:focus {
 
 .popup-option-image {
     margin-right: 8px;
-    width: 24px;
-    height: 24px;
+    width: 32px;
+    height: 32px;
     box-shadow: rgb(0 0 0 / 8%) 0px 6px 10px;
-    border-radius: 24px;
+    border-radius: 32px;
 }
 
 .popup-option-text {
@@ -1206,6 +1206,7 @@ button.input-balance-max:hover, button.input-balance-max:focus {
     min-width: 0px;
     font-weight: 500;
     font-size: 16px;
+    cursor: default;
 }
 
 @media screen and (max-width: 768px) {

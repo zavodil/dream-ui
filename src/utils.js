@@ -140,3 +140,7 @@ export function toQuery(params, delimiter = '&') {
 export function ConvertToE18(amount) {
   return new Big(Math.round(amount * 100000000)).mul(new Big("10000000000")).toString();
 }
+
+export function FormatNearTimestamp(timestamp){
+  return new Date(timestamp / 1000000).toISOString().replace(/T/, ' ').replace(/\..+/, '')
+}

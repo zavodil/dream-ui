@@ -6,7 +6,7 @@ import { initContract } from './utils'
 window.nearInitPromise = initContract()
   .then(() => {
 
-      console.log(`Contract: ${window.contract.contractId}. Current user: ${window.accountId}.`);
+      console.log(`Contract: ${window.contract.contractId}. Current user: ${window.accountId || "Unknown"}.`);
 
       //window.token_contracts = [];
 

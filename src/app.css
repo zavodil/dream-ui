@@ -36,3 +36,20 @@
 .unlock-errors{
     padding-left: 20px;
 }
+
+.unlock-status{
+    text-align: center;
+}
+
+.unlock-status .input-box{
+    padding: 10px 0;
+}
+
+.token-contract-url{
+    color: rgb(255, 255, 255);
+    text-decoration: none;
+}
+
+.token-contract-url :hover{
+    text-decoration: underline;
+}

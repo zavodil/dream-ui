@@ -1,6 +1,6 @@
 import 'regenerator-runtime/runtime'
 import React from 'react'
-import {ConvertToE18, login, logout} from './utils'
+import {ConvertToE18, FormatNearTimestamp, login, logout} from './utils'
 import * as nearAPI from 'near-api-js'
 import 'react-dropdown/style.css';
 import './global.css'
@@ -24,9 +24,10 @@ const appSettings = getAppSettings();
 const config = getConfig(process.env.NODE_ENV || 'development');
 const FRAC_DIGITS = 5;
 const UNDEFINED_IMAGE = "https://s2.coinmarketcap.com/static/img/coins/64x64/6535.png";
-const PRICE_ORACLE = "priceoracle.testnet";
+const PRICE_ORACLE = "priceoracle.near";
 const DEFAULT_TOKEN_NAME = "Wrapped Near";
-const DEFAULT_TOKEN_ACCOUNT_ID = "wrap.testnet";
+const DEFAULT_TOKEN_SYMBOL = "wNEAR";
+const DEFAULT_TOKEN_ACCOUNT_ID = "wrap.near";
 
 const defaultUnlockHint = "Tokens will be locked until selected unlock event";
 
@@ -49,6 +50,7 @@ export default function App() {
     const [tokenInputAccountBalance, setTokenInputAccountBalance] = React.useState(0);
     const [assetInput, setAssetInput] = React.useState(DEFAULT_TOKEN_ACCOUNT_ID);
     const [assetInputName, setAssetInputName] = React.useState(DEFAULT_TOKEN_NAME);
+    const [assetInputSymbol, setAssetInputSymbol] = React.useState(DEFAULT_TOKEN_SYMBOL);
     const [assetInputPrice, setAssetInputPrice] = React.useState(0);
     const [assetInputPriceFormatted, setAssetInputPriceFormatted] = React.useState("");
     const [outputDifferenceInDays, setOutputDifferenceInDays] = React.useState("");
@@ -74,6 +76,8 @@ export default function App() {
     const [selectedUserTokenBalance, setSelectedUserTokenBalance] = React.useState("0.0");
     const [tokenLockAmountInput, setTokenLockAmountInput] = React.useState("0.0");
     const [unlockTypeError, setUnlockTypeError] = React.useState("");
+    const [unlockTokenStatusMessage, setUnlockTokenStatusMessage] = React.useState("");
+    const [unlockButtonMessage, setUnlockButtonMessage] = React.useState("Unlock");
     const [assetLockedPopup, setAssetLockedPopup] = React.useState(false);
     const [parseLockedAssetInputTextbox, setParseLockedAssetInputTextbox] = React.useState("");
 
@@ -141,7 +145,10 @@ export default function App() {
         setLockTypeError(targetPriceOutput < assetInputPrice ? "Target Price is lower then current price" : "");
     }
 
-    const UpdateAssetInputName = async (assetName) => {
+    const UpdateAssetInputName = async (assetName, assetSymbol) => {
+        if (assetSymbol === undefined)
+            assetSymbol = assetName;
+
         const allTokenIds = Object.keys(allWhitelistedTokens);
         let tokens = allTokenIds.filter(token => {
                 return allWhitelistedTokens[token].name.toLowerCase() === assetName.toLowerCase()
@@ -150,6 +157,7 @@ export default function App() {
         if (tokens.length === 1) {
             setAssetInput(tokens[0])
             setAssetInputName(assetName);
+            setAssetInputSymbol(assetSymbol);
             await CheckWenTokenAvailability()
         } else {
             throw ("Unknown Asset Name " + assetName)
@@ -170,7 +178,8 @@ export default function App() {
             })
             setTokenAlreadyCreated(Object.keys(sameTokens).length > 0);
             if (Object.keys(sameTokens).length) {
-                setTokenAlreadyCreatedName(await GetTokenName());
+                let token_name = await GetTokenName(targetPrice);
+                setTokenAlreadyCreatedName(token_name);
             }
         }
     }
@@ -180,17 +189,13 @@ export default function App() {
         const allTokenIds = Object.keys(userBalances);
         if (allTokenIds.length) {
             let tokens = allTokenIds.filter(token => {
-                console.log(token)
-                console.log(userBalances[token].meta.name)
                     return userBalances[token].meta.name.toLowerCase() === value.toLowerCase()
                 }
             );
 
-            console.log(tokens)
-
             if (tokens.length === 1) {
                 let token_address = tokens[0];
-                setSelectedUserToken(token_address);
+                UpdateSelectedToken(token_address);
                 setSelectedUserTokenBalance(userBalances[token_address].balance.toFixed(2));
                 setParseLockedAssetInputTextbox(userBalances[token_address].meta.name);
 
@@ -199,9 +204,12 @@ export default function App() {
         }
     }
 
-    const ParseAssetInput = (value) => {
+    const ParseAssetInput = async (value, symbol) => {
+        if (symbol === undefined)
+            symbol = value;
         setAssetInput(value);
         setAssetInputName(value);
+        setAssetInputSymbol(symbol);
         const allTokenIds = Object.keys(allWhitelistedTokens);
         if (allTokenIds.length) {
             let tokens = allTokenIds.filter(token => {
@@ -213,7 +221,7 @@ export default function App() {
                 let token_address = tokens[0];
                 console.log("Select token: " + token_address)
                 let token_details = allWhitelistedTokens[token_address];
-                UpdateAssetInputName(token_details.name);
+                await UpdateAssetInputName(token_details.name, token_details.symbol);
                 setAssetInputPrice(0);
                 setAssetInputPriceFormatted("");
                 GetBalance(token_address);
@@ -232,13 +240,15 @@ export default function App() {
 
     const GetWhitelistedTokens = async () => {
         let whitelistedTokens = await window.contract.get_whitelisted_tokens({"from_index": 0, "limit": 100});
+        console.log(whitelistedTokens)
         let tokens = {
-            "wrap.testnet": {
+        /*    "wrap.testnet": {
                     "img": "https://s2.coinmarketcap.com/static/img/coins/64x64/6535.png",
                     "coingecko_name": "near",
                     "decimals": 24,
                     "name": "Wrapped Near"
                 }
+         */
         }
         /*let tokens = {
             "Near":
@@ -290,6 +300,7 @@ export default function App() {
             tokens[token.asset_id] = {
                 img: token.metadata.icon,
                 decimals: token.metadata.decimals,
+                symbol: token.metadata.symbol,
                 coingecko_name: getCoingeckoMap(token.asset_id),
                 name: token.metadata.name
             };
@@ -310,6 +321,14 @@ export default function App() {
             else
                 return UNDEFINED_IMAGE;
         }
+    };
+
+    const GetLockedTokenImage = (token) => {
+        const tokens = Object.keys(userBalances).filter(token_id => userBalances[token_id].token_id === token);
+        if (tokens.length > 0)
+            return userBalances[tokens[0]].img;
+        else
+            return UNDEFINED_IMAGE;
     };
 
     const UnlockTypesList = () => {
@@ -413,8 +432,8 @@ export default function App() {
     const createTokenObject = (token, details) => {
         const isActive = token === assetInput;
         return <div className={isActive ? "popup-options-item" : "popup-options-item-inactive"}
-                    onClick={() => {
-                        ParseAssetInput(token);
+                    onClick={async () => {
+                        await ParseAssetInput(token, details.symbol);
                     }} key={token}>
             <img className="popup-option-image"
                  alt={token + " logo"}
@@ -451,12 +470,6 @@ export default function App() {
     /* ON LOAD EVENT */
     const OnSignIn = async (allWenTokens, allWhitelistedTokens) => {
         try {
-
-            /*
-            await setTokenContracts(allTokens).then(() => {
-                console.log(window.token_contracts);
-            })*/
-
             await LoadUserTokens(allWenTokens, allWhitelistedTokens);
 
         } catch (e) {
@@ -492,12 +505,11 @@ export default function App() {
                         }
                     }
                 })
-                // console.log("userBalances"); console.log(userBalances);
                 setUserBalances(userBalances);
 
                 if (Object.keys(userBalances).length > 0) {
                     let token = Object.keys(userBalances)[0];
-                    setSelectedUserToken(token);
+                    UpdateSelectedToken(token);
                     setSelectedUserTokenBalance(userBalances[token].balance.toFixed(2));
                     setParseLockedAssetInputTextbox(userBalances[token].meta.name);
                 }
@@ -505,6 +517,33 @@ export default function App() {
             })
         }
         setLoading(false);
+    }
+
+    const UpdateSelectedToken = (token) => {
+        setSelectedUserToken(token);
+        GetLockedTokenStatus(token)
+    }
+
+    const GetLockedTokenStatus = (token) => {
+        new nearAPI.Account(connection, token).viewFunction(token, "get_status", {})
+            .then(status => {
+                if (status === "Locked") {
+                    setUnlockTokenStatusMessage("Token is currently locked");
+                    setUnlockButtonMessage("Try to unlock");
+                }
+                else if(status.hasOwnProperty("Unlocking") && status["Unlocking"].initiated_timestamp){
+                    setUnlockTokenStatusMessage("Token is currently unlocking. Process begun: " + FormatNearTimestamp(status["Unlocking"].initiated_timestamp));
+                    setUnlockButtonMessage("Try to redeem");
+                }
+                else if (status === "Unlocked") {
+                    setUnlockTokenStatusMessage("Token is currently unlocked");
+                    setUnlockButtonMessage("Redeem");
+                }
+                else{
+                    setUnlockTokenStatusMessage(status);
+                    setUnlockButtonMessage("Unlock");
+                }
+            });
     }
 
     /* UI EVENTS */
@@ -607,6 +646,8 @@ export default function App() {
     };
 
     const GetNearBalance = () => {
+        if(!window.accountId)
+            return  0;
         const connection = getNearAccountConnection();
         return GetAccountState(connection, window.accountId).then(state => {
             if (state) {
@@ -619,7 +660,9 @@ export default function App() {
     }
 
     const GetFtBalance = async (token, decimals, updateBalance) => {
-        //console.log("GetFtBalance " + token)
+        if(!window.accountId)
+            return  0;
+
         const connection = getNearAccountConnection();
         return new Promise((resolve, reject) => {
             new nearAPI.Account(connection, token).viewFunction(token, "ft_balance_of", {account_id: window.accountId})
@@ -709,36 +752,6 @@ export default function App() {
         return () => clearInterval(timer);
     });
 
-    /* LOGIN SCREEN */
-    /*
-    if (!window.walletConnection.isSignedIn()) {
-        return (
-            <>
-                <Header onClick={login}
-                        config={config}
-                        title={accountId}
-                        deposit={deposit}
-                        isNavDropdownActive={isNavDropdownActive}
-                        appSettings={appSettings}/>
-                <main>
-                    <h1>{appSettings.appFullNme}</h1>
-                    <p>
-                        {appSettings.appDescription}
-                    </p>
-                    <p>
-                        To make use of the NEAR blockchain, you need to sign in. The button
-                        below will sign you in using NEAR Wallet.
-                    </p>
-                    <p style={{textAlign: 'center', marginTop: '2.5em'}}>
-                        <button onClick={login}>Sign in</button>
-                    </p>
-                </main>
-                <Footer appSettings={appSettings}/>
-            </>
-        )
-    }
-    */
-
     const isLockTypeSet = IsLockTypeSet();
 
     const convertTargetPriceOutput = (targetPrice) => {
@@ -747,11 +760,11 @@ export default function App() {
         return (targetPrice * 10000).toFixed(0);
     }
 
-    const GetTokenName = async () => {
+    const GetTokenName = async (targetPrice) => {
         return await window.contract.get_token_name({
             token_args: {
                 token_id: assetInput,
-                target_price: convertTargetPriceOutput()
+                target_price: convertTargetPriceOutput(targetPrice)
             }
         });
     }
@@ -790,7 +803,7 @@ export default function App() {
     }
 
     const LockTokens = async () => {
-        if (!assetInput || !targetPriceOutput || !allWhitelistedTokens.hasOwnProperty(assetInput)) {
+        if (!window.accountId || !assetInput || !targetPriceOutput || !allWhitelistedTokens.hasOwnProperty(assetInput)) {
             alert(`No data at LockTokens (${assetInput}, ${assetInputPrice}}`);
         } else {
             let contract_id = await GetTokenName();
@@ -975,7 +988,7 @@ export default function App() {
                                 <div className="popup-box-2">
                                     <div className="popup-title">
                                         <div className="popup-title-text">Select a token</div>
-                                        <div onClick={() => setAssetInputPopup(false)} className="close-popup">
+                                        <div onClick={() => setAssetLockedPopup(false)} className="close-popup">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"
                                                  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                                                  strokeLinecap="round" strokeLinejoin="round"
@@ -1068,12 +1081,6 @@ export default function App() {
                     >
                         <ul>
                             <li>
-                                <a href={"#"}>Account</a>
-                            </li>
-                            <li>
-                                <a href={"#"}>Settings</a>
-                            </li>
-                            <li>
                                 <a href={"#"} onClick={logout}>Sign Out</a>
 
                             </li>
@@ -1127,7 +1134,7 @@ export default function App() {
                                             <div className="input-balance-row">
                                                 <div className="input-balance-value">
                                                     <div
-                                                        className="input-balance-text">Balance: {tokenInputAccountBalance} {assetInputName}
+                                                        className="input-balance-text">Balance: {tokenInputAccountBalance} {assetInputSymbol}
                                                     </div>
                                                     <button className="input-balance-max"
                                                             onClick={() => {
@@ -1225,8 +1232,11 @@ export default function App() {
                                                             Current Price: {assetInputPriceFormatted}
                                                         </div>
                                                         {tokenAlreadyCreated &&
-                                                        <div className="lock-info">Token Already
-                                                            created: {tokenAlreadyCreatedName}</div>}
+                                                        <div className="lock-info">Token already created:&nbsp;
+                                                            <a href={`https://explorer.mainnet.near.org/accounts/${tokenAlreadyCreatedName}`}
+                                                               target="_blank" className="token-contract-url">
+                                                                {tokenAlreadyCreatedName}
+                                                            </a></div>}
                                                         {!tokenAlreadyCreated &&
                                                         <div className="lock-info">Token wasn't created yet. You will
                                                             have to pay ~2.5 NEAR to
@@ -1259,7 +1269,7 @@ export default function App() {
                                     <div>Lock</div>
                                 </button> :
 
-                                <button className="main-button inactive" onClick={login}>
+                                <button className="main-button" onClick={login}>
                                     <div>Connect Wallet</div>
                                 </button>
                             }
@@ -1284,7 +1294,7 @@ export default function App() {
                                             <button className="asset-1" onClick={() => setAssetLockedPopup(true)}>
                                                 <span className="ticker">
                                                     <div className="token">
-<img src={GetTokenImage(userBalances[selectedUserToken].token_id)}
+<img src={GetLockedTokenImage(userBalances[selectedUserToken].token_id)}
      className="token-logo"/>
 
     <span className="token-name">{userBalances[selectedUserToken].meta.name}</span>
@@ -1328,11 +1338,28 @@ export default function App() {
 
                                 </div>
 
+                                <div className="arrow">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+                                         viewBox="0 0 24 24"
+                                         fill="none" stroke="#8F96AC" strokeWidth="2" strokeLinecap="round"
+                                         strokeLinejoin="round">
+                                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                                        <polyline points="19 12 12 19 5 12"></polyline>
+                                    </svg>
+                                </div>
+
+                                {unlockTokenStatusMessage && <div className="input-balance-price-error unlock-status">
+                                    <div className="input">
+                                        <div className="input-box">
+                                            {unlockTokenStatusMessage}
+                                        </div>
+                                    </div>
+                                </div>}
                             </div>
 
-                            <div className="input-balance-price-error input-error unlock-errors">
+                            {unlockTypeError && <div className="input-balance-price-error input-error unlock-errors">
                                 {unlockTypeError}
-                            </div>
+                            </div>}
 
                         </div>}
 
@@ -1343,7 +1370,7 @@ export default function App() {
                                 <button className="main-button"
                                         disabled={parseFloat(tokenLockAmountInput) === 0 || !hasUserBalances || unlockTypeError !== ""}
                                         onClick={() => UnlockTokens()}>
-                                    <div>Unlock</div>
+                                    <div>{unlockButtonMessage}</div>
                                 </button> :
 
                                 <button className="main-button inactive" onClick={login}>
