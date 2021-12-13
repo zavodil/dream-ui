@@ -138,11 +138,11 @@ export default function App() {
     };
 
     const ValidateTargetPriceOutput = (targetPriceOutput) => {
-        setLockTypeError(targetPriceOutput < assetInputPrice ? "Target Price is lower then current price" : "");
+        setLockTypeError(targetPriceOutput < assetInputPrice ? "Target Price is lower than current price" : "");
     }
 
     const ValidateAssetInputPrice = (assetInputPrice) => {
-        setLockTypeError(targetPriceOutput < assetInputPrice ? "Target Price is lower then current price" : "");
+        setLockTypeError(targetPriceOutput < assetInputPrice ? "Target Price is lower than current price" : "");
     }
 
     const UpdateAssetInputName = async (assetName, assetSymbol) => {
@@ -951,8 +951,8 @@ export default function App() {
                                                  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                                                  strokeLinecap="round" strokeLinejoin="round"
                                                  className="sc-1cchcrx-1 bNKSgQ">
-                                                <line x1="18" y1="6" x2="6" y2="18"></line>
-                                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                                <line x1="6" y1="6" x2="18" y2="18"/>
                                             </svg>
                                         </div>
                                     </div>
@@ -993,8 +993,8 @@ export default function App() {
                                                  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                                                  strokeLinecap="round" strokeLinejoin="round"
                                                  className="sc-1cchcrx-1 bNKSgQ">
-                                                <line x1="18" y1="6" x2="6" y2="18"></line>
-                                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                                <line x1="6" y1="6" x2="18" y2="18"/>
                                             </svg>
                                         </div>
                                     </div>
@@ -1035,8 +1035,8 @@ export default function App() {
                                                  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                                                  strokeLinecap="round" strokeLinejoin="round"
                                                  className="sc-1cchcrx-1 bNKSgQ">
-                                                <line x1="18" y1="6" x2="6" y2="18"></line>
-                                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                                <line x1="6" y1="6" x2="18" y2="18"/>
                                             </svg>
                                         </div>
                                     </div>
@@ -1156,8 +1156,8 @@ export default function App() {
                                          viewBox="0 0 24 24"
                                          fill="none" stroke="#8F96AC" strokeWidth="2" strokeLinecap="round"
                                          strokeLinejoin="round">
-                                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                                        <polyline points="19 12 12 19 5 12"></polyline>
+                                        <line x1="12" y1="5" x2="12" y2="19"/>
+                                        <polyline points="19 12 12 19 5 12"/>
                                     </svg>
                                 </div>
 
@@ -1179,7 +1179,7 @@ export default function App() {
                                                     <svg width="12" height="7" viewBox="0 0 12 7" fill="none"
                                                          xmlns="http://www.w3.org/2000/svg"
                                                          className="image-arrow-down"><path
-                                                        d="M0.97168 1L6.20532 6L11.439 1" stroke="#AEAEAE"></path></svg>
+    d="M0.97168 1L6.20532 6L11.439 1" stroke="#AEAEAE"/></svg>
                                                 </span>
                                             </button>
 
@@ -1238,9 +1238,7 @@ export default function App() {
                                                                 {tokenAlreadyCreatedName}
                                                             </a></div>}
                                                         {!tokenAlreadyCreated &&
-                                                        <div className="lock-info">Token wasn't created yet. You will
-                                                            have to pay ~2.5 NEAR to
-                                                            deploy it</div>}
+                                                        <div className="lock-info">Token has not yet been created. You will have to pay ~2.5 NEAR to deploy it</div>}
                                                     </div>
                                                     }
 
@@ -1303,7 +1301,7 @@ export default function App() {
                                                     <svg width="12" height="7" viewBox="0 0 12 7" fill="none"
                                                          xmlns="http://www.w3.org/2000/svg"
                                                          className="image-arrow-down"><path
-                                                        d="M0.97168 1L6.20532 6L11.439 1" stroke="#AEAEAE"></path></svg>
+    d="M0.97168 1L6.20532 6L11.439 1" stroke="#AEAEAE"/></svg>
                                                 </span>
                                             </button>
 
@@ -1343,8 +1341,8 @@ export default function App() {
                                          viewBox="0 0 24 24"
                                          fill="none" stroke="#8F96AC" strokeWidth="2" strokeLinecap="round"
                                          strokeLinejoin="round">
-                                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                                        <polyline points="19 12 12 19 5 12"></polyline>
+                                        <line x1="12" y1="5" x2="12" y2="19"/>
+                                        <polyline points="19 12 12 19 5 12"/>
                                     </svg>
                                 </div>
 
